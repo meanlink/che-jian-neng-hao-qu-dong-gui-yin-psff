@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>集团联合能耗归因 · 本地演练台</title>
+<style>
+:root{--accent:oklch(49% 0.11 145);--bg:#f4f6f5;--card:#fff;--ink:#1c2420;--mut:#66716b;--line:#dfe5e1;--ok:#177245;--warn:#9a6a00;--bad:#b3382c;--info:#2456a6}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.55 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+.dot{width:9px;height:9px;border-radius:50%;background:#bbb;display:inline-block}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
+.mut{color:var(--mut)}.small{font-size:12px}
+main{padding:16px 20px;display:grid;gap:16px;max-width:1440px;margin:0 auto}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+section h2{font-size:15px;margin:0 0 10px}
+button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 12px;cursor:pointer;font-size:13px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.warn{border-color:var(--warn);color:var(--warn)}
+button.danger{border-color:var(--bad);color:var(--bad)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,select{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:13px}
+label{display:inline-flex;align-items:center;gap:5px}
+.grid{display:grid;gap:10px}
+.cols{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{color:var(--mut);font-weight:600;white-space:nowrap}
+.chip{display:inline-block;border-radius:99px;padding:1px 9px;font-size:12px;border:1px solid var(--line)}
+.chip.collecting{background:#fff7e6;border-color:#e8c36a;color:#8a6100}
+.chip.awaiting_approval{background:#e8f0fe;border-color:#9db9ea;color:#2456a6}
+.chip.approved{background:#e6f4ec;border-color:#8ec9a8;color:var(--ok)}
+.chip.failed{background:#fdeceb;border-color:#eaa79f;color:var(--bad)}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.lane h3{font-size:13px;margin:0 0 8px;color:var(--mut)}
+.card{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:10px;background:#fff}
+.card .rid{font-family:ui-monospace,monospace;font-size:12px}
+.card .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.sites-progress{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.sp{border:1px solid var(--line);border-radius:7px;padding:2px 7px;font-size:12px;font-family:ui-monospace,monospace}
+.sp.got{border-color:#8ec9a8;background:#eef7f1}
+.sp.miss{border-color:#e8c36a;background:#fffaf0;color:#8a6100}
+.drawer{position:fixed;inset:0;background:rgba(20,26,22,.45);display:none;z-index:10}
+.drawer.open{display:block}
+.drawer .panel{position:absolute;right:0;top:0;bottom:0;width:min(860px,94vw);background:#fff;overflow:auto;padding:18px 22px;box-shadow:-6px 0 24px rgba(0,0,0,.18)}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;font-size:13px;margin-bottom:10px}
+.kv b{color:var(--mut);font-weight:600}
+pre{white-space:pre-wrap;word-break:break-all;background:#f6f8f7;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;max-height:320px;overflow:auto}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#202824;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;display:none;z-index:30;max-width:80vw}
+.metric{display:inline-block;border:1px solid var(--line);border-radius:9px;padding:8px 14px;margin:0 8px 8px 0}
+.metric b{display:block;font-size:17px}
+.warnbox{background:#fff7e6;border:1px solid #e8c36a;border-radius:8px;padding:8px 12px;margin:6px 0;font-size:13px}
+.evt{font-size:12px;border-bottom:1px dashed var(--line);padding:3px 0;font-family:ui-monospace,monospace}
+.hash{font-family:ui-monospace,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>集团联合能耗归因 · 本地演练台</h1>
+  <span id="health" class="dot"></span><span id="healthText" class="mut small">连接中…</span>
+  <span class="mut small">各厂原始日样本不出站，仅交换充分统计量与留出误差</span>
+  <span style="flex:1"></span>
+  <button id="btnRecoverAll" title="重放所有未完成屏障（协调服务中断恢复后自动执行，也可手动触发）">恢复全部运行</button>
+</header>
+<main>
+  <section>
+    <h2>发起联合运行（开算冻结参与厂、样本版本与日期边界）</h2>
+    <div class="grid cols">
+      <label>开始日 <input type="date" id="fStart" value="2026-05-01"></label>
+      <label>结束日 <input type="date" id="fEnd" value="2026-10-07"></label>
+      <label>最多解释变量 <input type="number" id="fK" value="4" min="2" max="4" style="width:64px"></label>
+      <label>情景负荷变化% <input type="number" id="fDelta" value="10" min="-30" max="30" style="width:72px"></label>
+    </div>
+    <div style="margin:10px 0" id="fSites"><span class="mut">等待厂站注册…</span></div>
+    <button class="primary" id="btnCreate">发起并冻结</button>
+    <span class="mut small" style="margin-left:10px">冻结后样本版本变更将被拒收；缺席厂不按零计入，齐备才推进</span>
+  </section>
+
+  <section>
+    <h2>厂站（独立站点，可演练断线）</h2>
+    <table id="siteTable"><thead><tr>
+      <th>厂站</th><th>样本版本</th><th>记录数</th><th>覆盖</th><th>最近心跳</th><th>断线演练</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+
+  <section>
+    <h2>运行看板</h2>
+    <div class="board" id="board"></div>
+  </section>
+</main>
+
+<div class="drawer" id="drawer"><div class="panel" id="drawerPanel"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const STATUS={collecting:"待汇总",awaiting_approval:"待批准",approved:"已完成",failed:"失败"};
+const STAGE={train_stats:"训练统计汇总",holdout_eval:"留出误差汇总"};
+let overview={runs:[],sites:[]},drawerRun=null,drawerData=null;
+
+async function api(path,opts={}){
+  const r=await fetch(path,opts);
+  const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(e){}
+  if(!r.ok)throw new Error((j&&j.error&&j.error.message)||("HTTP "+r.status));
+  return j;
+}
+const post=(path,body)=>api(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});
+function toast(msg,ms=4200){const t=$("#toast");t.textContent=msg;t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",ms);}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+const short=h=>h?String(h).slice(0,12):"—";
+
+async function refresh(){
+  try{
+    overview=await api("/api/overview");
+    $("#health").className="dot ok";$("#healthText").textContent="协调方在线";
+  }catch(e){
+    $("#health").className="dot bad";$("#healthText").textContent="协调方不可达（中断演练中）";
+    return;
+  }
+  renderSites();renderBoard();renderCreateSites();
+  if(drawerRun){try{drawerData=await api("/api/runs/"+drawerRun);renderDrawer();}catch(e){}}
+}
+
+function renderCreateSites(){
+  const box=$("#fSites");
+  if(!overview.sites.length){box.innerHTML='<span class="mut">暂无厂站注册：先启动厂站代理（python -m federated.demo up …）</span>';return;}
+  box.innerHTML="参与厂："+overview.sites.map(s=>
+    `<label style="margin-right:14px"><input type="checkbox" class="fSite" value="${esc(s.site_id)}" data-v="${esc(s.sample_version)}" checked> ${esc(s.site_id)} <span class="hash mut">${short(s.sample_version)}</span></label>`
+  ).join("");
+}
+
+function renderSites(){
+  const tb=$("#siteTable tbody");tb.innerHTML="";
+  for(const s of overview.sites){
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td><b>${esc(s.site_id)}</b></td><td class="hash">${short(s.sample_version)}</td>
+      <td>${s.records??"—"}</td><td class="small">${esc(s.coverage?.first||"—")} ~ ${esc(s.coverage?.last||"—")}</td>
+      <td class="small">${esc(s.last_seen||"—")}</td>
+      <td><button class="warn" data-dc="${esc(s.site_id)}">断线30秒</button>
+          <button data-rs="${esc(s.site_id)}">恢复</button></td>`;
+    tb.appendChild(tr);
+  }
+  tb.querySelectorAll("[data-dc]").forEach(b=>b.onclick=async()=>{
+    try{await post(`/api/sites/${b.dataset.dc}/drill/disconnect`,{seconds:30});toast(`已指令 ${b.dataset.dc} 断线30秒：屏障将等待该厂，缺席不当零`);}
+    catch(e){toast("断线演练失败："+e.message);}
+  });
+  tb.querySelectorAll("[data-rs]").forEach(b=>b.onclick=async()=>{
+    try{await post(`/api/sites/${b.dataset.rs}/drill/resume`);toast(`${b.dataset.rs} 已恢复提交`);}
+    catch(e){toast("恢复失败："+e.message);}
+  });
+}
+
+function stageChips(run){
+  return run.participants.map(p=>{
+    const miss=run.missing.includes(p);
+    return `<span class="sp ${miss?"miss":"got"}">${esc(p)} ${miss?"待汇总":"✓"}</span>`;
+  }).join("");
+}
+
+function renderBoard(){
+  const lanes={collecting:[],awaiting_approval:[],approved:[],failed:[]};
+  for(const r of overview.runs)(lanes[r.status]||lanes.collecting).push(r);
+  $("#board").innerHTML=Object.entries(lanes).map(([st,runs])=>{
+    const cards=runs.map(r=>`
+      <div class="card">
+        <div><span class="chip ${st}">${STATUS[st]}</span> <span class="rid">${esc(r.run_id)}</span></div>
+        <div class="small mut">清单 ${short(r.manifest_hash)} · ${esc(r.created_at||"")}</div>
+        ${st==="collecting"?`<div class="small">开放阶段：${STAGE[r.open_stage]||r.open_stage}</div>`:""}
+        <div class="sites-progress">${stageChips(r)}</div>
+        ${r.missing&&r.missing.length?`<div class="small" style="color:#8a6100">缺席：${r.missing.map(esc).join("、")}（不按零计入，屏障等待）</div>`:""}
+        ${r.failure?`<div class="small" style="color:var(--bad)">失败：${esc(r.failure.reason||"")}</div>`:""}
+        ${r.approval?`<div class="small mut">批准：${esc(r.approval.approver)} ${esc(r.approval.at)}</div>`:""}
+        <div class="acts">
+          <button data-detail="${esc(r.run_id)}">详情与来源</button>
+          ${st==="collecting"?`<button data-resume="${esc(r.run_id)}">恢复</button>`:""}
+          ${st==="awaiting_approval"?`<button class="primary" data-approve="${esc(r.run_id)}">批准分发</button>`:""}
+          ${st==="approved"?`<button data-result="${esc(r.run_id)}">查看结果</button>`:""}
+          ${st!=="failed"?`<button class="warn" data-late="${esc(r.run_id)}">迟到回包</button>
+          <button class="warn" data-conflict="${esc(r.run_id)}">同号异包</button>`:""}
+        </div>
+      </div>`).join("")||'<div class="mut small">暂无</div>';
+    return `<div class="lane"><h3>${STATUS[st]}（${runs.length}）</h3>${cards}</div>`;
+  }).join("");
+  document.querySelectorAll("[data-detail]").forEach(b=>b.onclick=()=>openDrawer(b.dataset.detail));
+  document.querySelectorAll("[data-resume]").forEach(b=>b.onclick=async()=>{
+    try{const r=await post(`/api/runs/${b.dataset.resume}/resume`);toast(`恢复扫描完成：${r.advanced?"已补推进":"无需推进"}（${r.before[1]||"-"} → ${r.after[1]||"-"}）`);refresh();}
+    catch(e){toast("恢复失败："+e.message);}
+  });
+  document.querySelectorAll("[data-approve]").forEach(b=>b.onclick=async()=>{
+    const who=prompt("批准人","集团能源组");if(who===null)return;
+    try{await post(`/api/runs/${b.dataset.approve}/approve`,{approver:who,note:"页面批准"});toast("已批准，结果包开放分发");refresh();}
+    catch(e){toast("批准被拒："+e.message);}
+  });
+  document.querySelectorAll("[data-result]").forEach(b=>b.onclick=()=>openDrawer(b.dataset.result,true));
+  document.querySelectorAll("[data-late]").forEach(b=>b.onclick=()=>drill(b.dataset.late,"late"));
+  document.querySelectorAll("[data-conflict]").forEach(b=>b.onclick=()=>drill(b.dataset.conflict,"conflict"));
+}
+
+async function drill(runId,mode){
+  try{
+    const d=await api("/api/runs/"+runId);
+    let stage,site;
+    if(mode==="late"){
+      stage=d.open_stage==="train_stats"?null:"train_stats";
+      if(!stage){toast("迟到演练需阶段一已关闭（先让运行推进到留出误差阶段）");return;}
+    }else{
+      stage=d.open_stage;
+      if(!stage){toast("运行已汇总完毕，无开放阶段可演练");return;}
+    }
+    const box=d.contributions[stage]||{};
+    site=Object.keys(box)[0];
+    if(!site){toast(`阶段${STAGE[stage]||stage}暂无已接收贡献可重放`);return;}
+    const r=await post(`/api/runs/${runId}/drill/${mode}`,{stage,site_id:site});
+    const o=r.outcome;
+    toast(`演练[${mode==="late"?"迟到回包":"同号异包"}] ${site}@${stage} → HTTP ${o.http} ${o.code}：${o.note}`,6500);
+    refresh();
+  }catch(e){toast("演练失败："+e.message);}
+}
+
+async function openDrawer(runId,showResult=false){
+  drawerRun=runId;
+  try{drawerData=await api("/api/runs/"+runId);}catch(e){toast(e.message);return;}
+  $("#drawer").classList.add("open");
+  renderDrawer();
+  if(showResult)loadResult();
+}
+
+function contribRows(d){
+  const parts=d.manifest.participants.map(p=>p.site_id);
+  return Object.keys(STAGE).map(stage=>{
+    const box=d.contributions[stage]||{};
+    const cells=parts.map(p=>{
+      const c=box[p];
+      return c?`<span class="sp got">${esc(p)} seq=${c.seq} <span class="hash">${c.hash}</span><br><span class="small mut">${esc(c.received_at)}</span></span>`
+              :`<span class="sp miss">${esc(p)} 待汇总</span>`;
+    }).join(" ");
+    return `<tr><th>${STAGE[stage]}</th><td><div class="sites-progress">${cells}</div></td></tr>`;
+  }).join("");
+}
+
+function renderDrawer(){
+  const d=drawerData;if(!d)return;
+  const m=d.manifest;
+  let html=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <h2 style="margin:0;font-size:16px">${esc(d.run_id)}</h2>
+    <span class="chip ${d.status}">${STATUS[d.status]}</span>
+    <span style="flex:1"></span><button id="btnClose">关闭</button></div>
+  <div class="kv">
+    <b>清单指纹</b><span class="hash">${esc(m.manifest_hash)}</span>
+    <b>日期边界</b><span>${esc(m.boundary.start)} ~ ${esc(m.boundary.end)}（训练窗${m.windows.train.days}天 / 留出窗${m.windows.holdout.days}天 / 情景窗${m.windows.scenario.days}天）</span>
+    <b>参数</b><span>最多解释变量 ${m.params.max_features}；情景负荷 ${m.params.scenario_pct}%；α∈{0.1,1,10}</span>
+    <b>冻结参与厂</b><span>${m.participants.map(p=>`${esc(p.site_id)} <span class="hash mut">${short(p.sample_version)}</span>`).join("　")}</span>
+  </div>
+  <h3>各厂来源（阶段屏障：齐备才推进，缺席不当零）</h3>
+  <table><tbody>${contribRows(d)}</tbody></table>`;
+  if(d.missing&&d.missing.length)html+=`<div class="warnbox">当前缺席：${d.missing.map(esc).join("、")}——屏障等待中，不按零计入。</div>`;
+  if(d.selection){
+    html+=`<h3>选参与全局系数</h3>
+    <div class="kv"><b>入选特征</b><span>${d.selection.features.map(f=>esc(m.feature_labels[f]||f)).join("、")}</span>
+    <b>岭惩罚α</b><span>${d.selection.alpha}</span>
+    <b>CV RMSE</b><span>${d.selection.cv_rmse.toFixed(3)} kWh</span>
+    <b>全局系数</b><span class="hash">${d.model?Object.entries(d.model.coef).map(([k,v])=>`${esc(m.feature_labels[k]||k)}=${v.toFixed(4)}`).join("，"):""}；截距=${d.model?d.model.intercept.toFixed(3):""}</span></div>
+    <details><summary class="small mut">候选网格（${d.selection.candidates.length}组）</summary>
+    <table><thead><tr><th>特征组合</th><th>α</th><th>CV RMSE</th></tr></thead><tbody>
+    ${d.selection.candidates.map(c=>`<tr${c===d.selection.candidates.find(x=>x.cv_rmse===d.selection.cv_rmse)?' style="background:#eef7f1"':""}><td>${c.features.map(f=>esc(m.feature_labels[f]||f)).join("+")}</td><td>${c.alpha}</td><td>${c.cv_rmse.toFixed(3)}</td></tr>`).join("")}
+    </tbody></table></details>`;
+  }
+  if(d.holdout){
+    html+=`<h3>各厂留出误差</h3><table><thead><tr><th>厂站</th><th>留出天数</th><th>RMSE(kWh)</th></tr></thead><tbody>
+    ${d.holdout.sites.map(s=>`<tr><td>${esc(s.site_id)}</td><td>${s.n}</td><td>${s.rmse===null?"—":s.rmse.toFixed(3)}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="kv"><b>全局留出</b><span>n=${d.holdout.n}，RMSE=${d.holdout.rmse.toFixed(3)} kWh，R²=${d.holdout.r2_defined&&d.holdout.r2!==null?d.holdout.r2.toFixed(4):"不可定义"}</span></div>`;
+  }
+  if(d.status==="awaiting_approval")html+=`<div class="warnbox">各厂留出误差与全局系数已齐备，可批准分发；批准前结果包不公开。</div>`;
+  if(d.failure)html+=`<div class="warnbox" style="border-color:#eaa79f;background:#fdeceb">失败：${esc(d.failure.reason||"")}（${esc(d.failure.site_id||d.failure.stage||"")}）</div>`;
+  html+=`<h3>事件流</h3><div>${d.events.slice().reverse().map(e=>`<div class="evt">${esc(e.at)} ${esc(e.kind)} ${esc(JSON.stringify(e.detail))}</div>`).join("")}</div>`;
+  html+=`<h3>结果包（批准后分发）</h3><div id="resultBox">${d.result_available?'<button id="btnResult">加载结果包</button>':"<span class='mut'>半成品不公开：需批准后分发</span>"}</div>`;
+  $("#drawerPanel").innerHTML=html;
+  $("#btnClose").onclick=()=>{$("#drawer").classList.remove("open");drawerRun=null;drawerData=null;};
+  const br=$("#btnResult");if(br)br.onclick=loadResult;
+}
+
+async function loadResult(){
+  if(!drawerRun)return;
+  try{
+    const pkg=await api(`/api/runs/${drawerRun}/result`);
+    const r=pkg.result;
+    $("#resultBox").innerHTML=`
+      <div>${r.metrics.map(m=>`<span class="metric"><span class="small mut">${esc(m.label)}</span><b>${esc(m.value)}</b><span class="small">${m.unit?esc(m.unit):""}</span></span>`).join("")}</div>
+      <p>${esc(r.summary)}</p>
+      <table><thead><tr>${r.table.columns.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr></thead>
+      <tbody>${r.table.rows.map(row=>`<tr>${r.table.columns.map(c=>`<td>${esc(row[c.key])}</td>`).join("")}</tr>`).join("")}</tbody></table>
+      ${r.warnings.map(w=>`<div class="warnbox">${esc(w)}</div>`).join("")}
+      <ul>${r.findings.map(f=>`<li>${esc(f)}</li>`).join("")}</ul>
+      <details><summary class="small mut">结果包JSON（含清单与批准信息）</summary><pre>${esc(JSON.stringify(pkg,null,2))}</pre></details>
+      <button id="btnDl">下载结果包JSON</button>`;
+    $("#btnDl").onclick=()=>{
+      const blob=new Blob([JSON.stringify(pkg,null,2)],{type:"application/json"});
+      const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=drawerRun+"_result.json";a.click();
+    };
+  }catch(e){$("#resultBox").innerHTML=`<span class="mut">${esc(e.message)}</span>`;}
+}
+
+$("#btnCreate").onclick=async()=>{
+  const parts=[...document.querySelectorAll(".fSite:checked")].map(c=>({site_id:c.value,sample_version:c.dataset.v}));
+  if(parts.length<2){toast("联合归因至少需要2个参与厂");return;}
+  try{
+    const r=await post("/api/runs",{params:{max_features:+$("#fK").value,scenario_pct:+$("#fDelta").value},
+      boundary:{start:$("#fStart").value,end:$("#fEnd").value},participants:parts,created_by:"演练页面"});
+    toast(`已发起并冻结 ${r.run_id}（清单 ${short(r.manifest_hash)}）`);refresh();
+  }catch(e){toast("发起被拒："+e.message);}
+};
+$("#btnRecoverAll").onclick=async()=>{
+  try{const r=await post("/api/admin/recover");toast(`恢复扫描完成：${r.recovered.length}个运行补推进`);refresh();}
+  catch(e){toast("恢复扫描失败："+e.message);}
+};
+$("#drawer").addEventListener("click",e=>{if(e.target.id==="drawer"){$("#drawer").classList.remove("open");drawerRun=null;drawerData=null;}});
+refresh();setInterval(refresh,2000);
+</script>
+</body>
+</html>

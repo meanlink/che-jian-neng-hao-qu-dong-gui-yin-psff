@@ -22,6 +22,9 @@ docker compose exec -T backend python -m scripts.seed_demo
 |analyst@demo.local|Demo123!|接入、执行、读取与下载；不能批准或安排分发|
 |viewer@demo.local|Demo123!|只读与下载|
 
+## 集团联合归因（多厂，原始日样本不出站）
+`federated/` 为独立可本地演练的联合版：各厂原始日样本不出站，站点间只交换充分统计量与留出误差汇总，保留本项目的80/20时间留出与3折选参语义。开算冻结参与厂/样本版本/日期边界，阶段屏障齐备才推进（缺席不当零），断线与协调中断可恢复，重试幂等、同号异内容与迟到回包拒收，各厂留出误差与全局系数齐备才可批准分发。详见 [federated/README.md](federated/README.md)。
+
 ## 技术与本地开发
 Python 3.12 / FastAPI / SQLAlchemy / NumPy / SciPy / scikit-learn；MySQL 8.0；Redis 7；Nginx；原生 HTML CSS JavaScript ES modules（用户指定）。后端所有校验、持久化和算法在服务端。无前端打包步骤。
 后端：安装 backend/requirements.txt，设置 DATABASE_URL、REDIS_URL、JWT_SECRET、ARTIFACT_DIR 后在 backend/ 执行 `python -m migrations.initial`、`python -m scripts.seed_demo`、`uvicorn src.main:app`，另开 `python -m src.worker`。前端使用带 /api 反向代理的 Nginx，直接打开 index.html 不支持 API。
